@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../GameContext';
 import socket from '../socket';
@@ -23,6 +23,11 @@ export default function TeacherSetup() {
   // Manual question editor
   const [manualQ, setManualQ] = useState({ text:'', options:{A:'',B:'',C:'',D:''}, correct:'A' });
   const [showManual, setShowManual] = useState(false);
+  const [banks, setBanks] = useState([]);
+  const [banksMsg, setBanksMsg] = useState('');
+  useEffect(() => {
+    fetch('/api/question-banks').then(r => r.json()).then(setBanks).catch(() => {});
+  }, []);
 
   async function handlePDF(e) {
     const file = e.target.files[0];
@@ -127,6 +132,26 @@ export default function TeacherSetup() {
         <section className="setup-card">
           <h3>❓ Questions ({questions.length} loaded)</h3>
 
+          {/* Built-in Banks */}
+          {banks.length > 0 && (
+            <div className="builtin-banks">
+              <p className="banks-label">📚 Built-in Question Banks (Grade 6)</p>
+              <div className="banks-grid">
+                {banks.map(b => (
+                  <div key={b.id} className="bank-card">
+                    <div className="bank-info">
+                      <strong>{b.title}</strong>
+                      <small>{b.topic}</small>
+                      <small>{b.count} questions</small>
+                    </div>
+                    <button className="btn btn-secondary" onClick={() => loadBuiltIn(b.id)}>Load</button>
+                  </div>
+                ))}
+              </div>
+              {banksMsg && <div className={`upload-msg ${banksMsg.startsWith('✅') ? 'success' : 'error'}`}>{banksMsg}</div>}
+              <hr style={{margin:'12px 0', opacity:0.3}} />
+            </div>
+          )}
           {/* PDF Upload */}
           <div className="upload-area" onClick={()=>fileRef.current?.click()}>
             <input ref={fileRef} type="file" accept=".pdf" hidden onChange={handlePDF} />
