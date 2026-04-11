@@ -9,25 +9,40 @@ export default function TeacherSetup() {
 
   const [settings, setSettings] = useState({
     questionTimer: 30,
-    castleHP     : 500,
-    bossHPMode   : 'auto',
-    manualBossHP : 5000,
-    sound        : true,
+    castleHP    : 500,
+    bossHPMode  : 'auto',
+    manualBossHP: 5000,
+    sound       : true,
   });
-  const [questions, setQuestions] = useState([]);
-  const [uploading, setUploading]  = useState(false);
-  const [uploadMsg, setUploadMsg]  = useState('');
-  const [creating, setCreating]    = useState(false);
+
+  const [questions,  setQuestions]  = useState([]);
+  const [uploading,  setUploading]  = useState(false);
+  const [uploadMsg,  setUploadMsg]  = useState('');
+  const [creating,   setCreating]   = useState(false);
   const fileRef = useRef();
 
-  // Manual question editor
-  const [manualQ, setManualQ] = useState({ text:'', options:{A:'',B:'',C:'',D:''}, correct:'A' });
+  const [manualQ,    setManualQ]    = useState({ text:'', options:{A:'',B:'',C:'',D:''}, correct:'A' });
   const [showManual, setShowManual] = useState(false);
+
   const [banks, setBanks] = useState([]);
-  const [banksMsg, setBanksMsg] = useState('');
+
   useEffect(() => {
-    fetch('/api/question-banks').then(r => r.json()).then(setBanks).catch(() => {});
+    fetch('/api/question-banks')
+      .then(r => r.json())
+      .then(setBanks)
+      .catch(() => {});
   }, []);
+
+  async function loadBuiltIn(bankId) {
+    try {
+      const res = await fetch('/api/question-banks/' + bankId);
+      const qs  = await res.json();
+      setQuestions(qs);
+      setUploadMsg('Loaded ' + qs.length + ' questions from built-in bank');
+    } catch {
+      setUploadMsg('Failed to load question bank');
+    }
+  }
 
   async function handlePDF(e) {
     const file = e.target.files[0];
@@ -39,14 +54,14 @@ export default function TeacherSetup() {
     try {
       const res  = await fetch('/upload-pdf', { method:'POST', body: form });
       const data = await res.json();
-      if (data.questions?.length) {
+      if (data.questions && data.questions.length) {
         setQuestions(data.questions);
-        setUploadMsg(`✅ ${data.total} questions loaded from PDF`);
+        setUploadMsg(data.total + ' questions loaded from PDF');
       } else {
-        setUploadMsg('⚠️ No questions found. Check PDF format.');
+        setUploadMsg('No questions found. Check PDF format.');
       }
     } catch {
-      setUploadMsg('❌ Upload failed. Try again.');
+      setUploadMsg('Upload failed. Try again.');
     }
     setUploading(false);
   }
@@ -64,7 +79,8 @@ export default function TeacherSetup() {
   }
 
   function createRoom() {
-    if (questions.length === 0) return dispatch({ type:'SET_ERROR', error:'Add at least one question first' });
+    if (questions.length === 0)
+      return dispatch({ type:'SET_ERROR', error:'Add at least one question first' });
     setCreating(true);
     socket.emit('create-room', settings, ({ success, roomCode }) => {
       if (!success) { setCreating(false); return; }
@@ -77,14 +93,14 @@ export default function TeacherSetup() {
   return (
     <div className="setup-screen">
       <div className="setup-header">
-        <h2>🎓 Teacher Setup</h2>
+        <h2>Teacher Setup</h2>
         <p>Configure your game and load questions</p>
       </div>
 
       <div className="setup-body">
-        {/* Settings */}
+
         <section className="setup-card">
-          <h3>⚙️ Game Settings</h3>
+          <h3>Game Settings</h3>
           <div className="settings-grid">
             <label>
               <span>Question Timer</span>
@@ -105,7 +121,7 @@ export default function TeacherSetup() {
             <label>
               <span>Boss HP</span>
               <select value={settings.bossHPMode} onChange={e=>setSettings(s=>({...s,bossHPMode:e.target.value}))}>
-                <option value="auto">Auto (1000 × groups)</option>
+                <option value="auto">Auto (1000 x groups)</option>
                 <option value="manual">Manual</option>
               </select>
             </label>
@@ -119,62 +135,61 @@ export default function TeacherSetup() {
             )}
             <label className="toggle-label">
               <span>Sound Effects</span>
-              <button
-                className={`toggle ${settings.sound?'on':''}`}
-                onClick={()=>setSettings(s=>({...s,sound:!s.sound}))}>
-                {settings.sound ? '🔊 On' : '🔇 Off'}
+              <button className={'toggle ' + (settings.sound ? 'on' : '')}
+                      onClick={()=>setSettings(s=>({...s,sound:!s.sound}))}>
+                {settings.sound ? 'On' : 'Off'}
               </button>
             </label>
           </div>
         </section>
 
-        {/* Questions */}
         <section className="setup-card">
-          <h3>❓ Questions ({questions.length} loaded)</h3>
+          <h3>Questions ({questions.length} loaded)</h3>
 
-          {/* Built-in Banks */}
           {banks.length > 0 && (
             <div className="builtin-banks">
-              <p className="banks-label">📚 Built-in Question Banks (Grade 6)</p>
+              <p className="banks-label">Built-in Question Banks - click to load instantly</p>
               <div className="banks-grid">
                 {banks.map(b => (
                   <div key={b.id} className="bank-card">
-                    <div className="bank-info">
-                      <strong>{b.title}</strong>
-                      <small>{b.topic}</small>
-                      <small>{b.count} questions</small>
-                    </div>
-                    <button className="btn btn-secondary" onClick={() => loadBuiltIn(b.id)}>Load</button>
+                    <div className="bank-title">{b.title}</div>
+                    <div className="bank-meta">Grade {b.grade} - {b.count} questions</div>
+                    <div className="bank-topic">{b.topic}</div>
+                    <button className="btn btn-secondary bank-btn"
+                            onClick={() => loadBuiltIn(b.id)}>
+                      Load
+                    </button>
                   </div>
                 ))}
               </div>
-              {banksMsg && <div className={`upload-msg ${banksMsg.startsWith('✅') ? 'success' : 'error'}`}>{banksMsg}</div>}
-              <hr style={{margin:'12px 0', opacity:0.3}} />
             </div>
           )}
-          {/* PDF Upload */}
-          <div className="upload-area" onClick={()=>fileRef.current?.click()}>
+
+          <div className="upload-area" onClick={()=>fileRef.current && fileRef.current.click()}>
             <input ref={fileRef} type="file" accept=".pdf" hidden onChange={handlePDF} />
-            <span className="upload-icon">📄</span>
+            <span className="upload-icon">PDF</span>
             <p><strong>Click to upload your PDF</strong></p>
             <p className="upload-hint">
-              Format: numbered questions with A/B/C/D options and "Answer: X"
+              Format: numbered questions with A/B/C/D options and Answer: X
             </p>
           </div>
-          {uploading && <div className="upload-spinner">⏳ Parsing...</div>}
-          {uploadMsg && <div className={`upload-msg ${uploadMsg.startsWith('✅')?'success':uploadMsg.startsWith('⚠️')?'warn':'error'}`}>{uploadMsg}</div>}
 
-          {/* Manual add */}
+          {uploading && <div className="upload-spinner">Parsing...</div>}
+          {uploadMsg && (
+            <div className="upload-msg">{uploadMsg}</div>
+          )}
+
           <button className="btn btn-secondary" onClick={()=>setShowManual(s=>!s)}>
-            {showManual ? '✕ Cancel' : '➕ Add Question Manually'}
+            {showManual ? 'Cancel' : 'Add Question Manually'}
           </button>
 
           {showManual && (
             <div className="manual-form">
-              <textarea placeholder="Question text..." value={manualQ.text}
+              <textarea placeholder="Question text..."
+                value={manualQ.text}
                 onChange={e=>setManualQ(q=>({...q,text:e.target.value}))} />
               {['A','B','C','D'].map(opt=>(
-                <input key={opt} placeholder={`Option ${opt}`}
+                <input key={opt} placeholder={'Option ' + opt}
                   value={manualQ.options[opt]}
                   onChange={e=>setManualQ(q=>({...q,options:{...q.options,[opt]:e.target.value}}))} />
               ))}
@@ -182,7 +197,7 @@ export default function TeacherSetup() {
                 <span>Correct answer:</span>
                 {['A','B','C','D'].map(opt=>(
                   <button key={opt}
-                    className={`opt-btn ${manualQ.correct===opt?'selected':''}`}
+                    className={'opt-btn ' + (manualQ.correct===opt ? 'selected' : '')}
                     onClick={()=>setManualQ(q=>({...q,correct:opt}))}>
                     {opt}
                   </button>
@@ -192,27 +207,26 @@ export default function TeacherSetup() {
             </div>
           )}
 
-          {/* Question list */}
           {questions.length > 0 && (
             <div className="question-list">
               {questions.map((q, i) => (
                 <div key={i} className="question-item">
                   <span className="q-num">Q{i+1}</span>
                   <span className="q-text">{q.text}</span>
-                  <span className="q-answer">✅ {q.correct}</span>
-                  <button className="q-remove" onClick={()=>removeQuestion(i)}>✕</button>
+                  <span className="q-answer">{q.correct}</span>
+                  <button className="q-remove" onClick={()=>removeQuestion(i)}>X</button>
                 </div>
               ))}
             </div>
           )}
         </section>
 
-        <button
-          className="btn btn-start big-btn"
-          disabled={questions.length === 0 || creating}
-          onClick={createRoom}>
-          {creating ? '⏳ Creating Room...' : '🚀 Create Room'}
+        <button className="btn btn-start big-btn"
+                disabled={questions.length === 0 || creating}
+                onClick={createRoom}>
+          {creating ? 'Creating Room...' : 'Create Room'}
         </button>
+
       </div>
     </div>
   );
