@@ -5,6 +5,7 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const cors = require('cors');
 const path = require('path');
+const questionBanks = require('./questionBanks');
 
 const app = express();
 const server = http.createServer(app);
@@ -153,6 +154,21 @@ function parseQuestions(text) {
   }
   return questions;
 }
+
+
+// ─── Built-in question banks ────────────────────────────────────────
+app.get('/api/question-banks', (req, res) => {
+  res.json(questionBanks.map(b => ({
+    id: b.id, title: b.title, topic: b.topic,
+    grade: b.grade, icon: b.icon, count: b.questions.length
+  })));
+});
+
+app.get('/api/question-banks/:id', (req, res) => {
+  const bank = questionBanks.find(b => b.id === req.params.id);
+  if (!bank) return res.status(404).json({ error: 'Not found' });
+  res.json(bank.questions);
+});
 
 // ─── PDF upload endpoint ──────────────────────────────────────────────────────
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
